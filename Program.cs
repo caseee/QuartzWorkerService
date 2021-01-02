@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging;
 using Quartz;
 using Serilog;
 using Serilog.Events;
+using System.Threading.Tasks;
+using System.Threading;
 
 public class Program
 {
@@ -25,39 +27,165 @@ public class Program
         Log.Logger = new LoggerConfiguration()
             .Enrich.FromLogContext()
             .WriteTo.Console()
-            .WriteTo.File(AppDomain.CurrentDomain.BaseDirectory + $"\\logs\\Common.FolderCleaner_{DateTime.Today:yyyyMMdd}.log", LogEventLevel.Information)
+            .WriteTo.File(AppDomain.CurrentDomain.BaseDirectory + $"\\logs\\{TestJobOption.TestJob}_{DateTime.Today:yyyyMMdd}.log", LogEventLevel.Information)
             .CreateLogger();
 
         services.AddScoped<Microsoft.Extensions.Logging.ILogger>(provider => provider.GetService<ILogger<TestJob>>());
 
         services.AddQuartz(q =>
         {
+            q.UseInMemoryStore(a=>{
 
-                // var xxx = context.Configuration.GetSection("TestJob");
+            }); 
+            var testJobOption = context.Configuration.GetSection(TestJobOption.TestJob).Get<TestJobOption>();
+            q.UseMicrosoftDependencyInjectionScopedJobFactory();
+            q.ScheduleJob<TestJob>(trigger => trigger.StartNow()
+                .WithCronSchedule(testJobOption.Cron)
+                .WithSimpleSchedule(s=> s.WithIntervalInHours(1))
+            );
 
-                // var bs = new Microsoft.Extensions.Configuration.ConfigurationBuilder();
-                // bs.AddConfiguration(context.Configuration);
-
-                // var ssss = bs.Build();
-                // var xxxxx= ssss.GetValue<TestJobOption>("TestJob");
-                var r = context.Configuration.GetValue<string>("TestJobOption:Cron");
-
-
-                // var b = services.BuildServiceProvider();
-                // var r = b.GetService<IOptions<TestJobOption>>();
-
-                q.UseMicrosoftDependencyInjectionScopedJobFactory();
-                // q.AddJobAndTrigger<TestJob>(configuration);
-                q.ScheduleJob<TestJob>(trigger => trigger
-               .StartNow()
-               .WithCronSchedule(r)
-               );
+            q.AddSchedulerListener<ServiceCollectionSchedulerListener>();
 
         });
 
         services.AddTransient<TestJob>();
+        services.AddTransient<ServiceCollectionSchedulerListener>();
 
         services.AddQuartzHostedService(options => options.WaitForJobsToComplete = true);
 
     }
 }
+
+public class ServiceCollectionSchedulerListener : ISchedulerListener
+{
+
+    ISchedulerFactory schedulerFactory;
+
+    public ServiceCollectionSchedulerListener(ISchedulerFactory schedulerFactory)
+    {
+        this.schedulerFactory = schedulerFactory ?? throw new ArgumentNullException(nameof(schedulerFactory));
+    }
+
+    public Task JobAdded(IJobDetail jobDetail, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task JobDeleted(JobKey jobKey, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task JobInterrupted(JobKey jobKey, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task JobPaused(JobKey jobKey, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task JobResumed(JobKey jobKey, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task JobScheduled(ITrigger trigger, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task JobsPaused(string jobGroup, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task JobsResumed(string jobGroup, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task JobUnscheduled(TriggerKey triggerKey, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task SchedulerError(string msg, SchedulerException cause, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task SchedulerInStandbyMode(CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public  Task SchedulerShutdown(CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public async Task SchedulerShuttingdown(CancellationToken cancellationToken = default)
+    {
+
+        var schedulers = await schedulerFactory.GetAllSchedulers(cancellationToken);
+      
+        foreach(var scheduler in schedulers) {
+
+            var jobs = await scheduler.GetCurrentlyExecutingJobs(cancellationToken);
+
+            foreach (var job in jobs) {
+
+                await scheduler.Interrupt(job.JobDetail.Key, cancellationToken);
+
+            }
+
+        }
+
+        return;
+
+        
+    }
+
+    public Task SchedulerStarted(CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task SchedulerStarting(CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task SchedulingDataCleared(CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task TriggerFinalized(ITrigger trigger, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task TriggerPaused(TriggerKey triggerKey, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task TriggerResumed(TriggerKey triggerKey, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task TriggersPaused(string triggerGroup, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task TriggersResumed(string triggerGroup, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+}
+
