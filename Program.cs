@@ -8,6 +8,7 @@ using Serilog;
 using Serilog.Events;
 using System.Threading.Tasks;
 using System.Threading;
+using Microsoft.Extensions.Options;
 
 public class Program
 {
@@ -33,18 +34,18 @@ public class Program
         services.AddScoped<Microsoft.Extensions.Logging.ILogger>(provider => provider.GetService<ILogger<TestJob>>());
 
         services.AddQuartz(q =>
-        {
-            q.UseInMemoryStore(a=>{
-
-            }); 
-            var testJobOption = context.Configuration.GetSection(TestJobOption.TestJob).Get<TestJobOption>();
+        {            
             q.UseMicrosoftDependencyInjectionScopedJobFactory();
-            q.ScheduleJob<TestJob>(trigger => trigger.StartNow()
-                .WithCronSchedule(testJobOption.Cron)
-                .WithSimpleSchedule(s=> s.WithIntervalInHours(1))
-            );
-
             q.AddSchedulerListener<ServiceCollectionSchedulerListener>();
+
+            services.Configure<TestJobOption>(context.Configuration.GetSection(TestJobOption.TestJob));
+            services.AddOptions<QuartzOptions>().Configure<IOptions<TestJobOption>>((options, dep) =>
+            {
+                if (!string.IsNullOrWhiteSpace(dep.Value.Cron))
+                {
+                    q.ScheduleJob<TestJob>(trigger => trigger.StartNow().WithCronSchedule(dep.Value.Cron)                    );
+                } // ELSE LOG?
+            });
 
         });
 
