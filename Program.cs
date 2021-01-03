@@ -31,18 +31,20 @@ public class Program
         services.AddScoped<Microsoft.Extensions.Logging.ILogger>(provider => provider.GetService<ILogger<TestJob>>());
 
         services.AddQuartz(q =>
-        {            
+        {
             q.UseMicrosoftDependencyInjectionScopedJobFactory();
             q.AddSchedulerListener<ServiceCollectionSchedulerListener>();
+        });
 
-            services.Configure<TestJobOption>(context.Configuration.GetSection(TestJobOption.TestJob));
-            services.AddOptions<QuartzOptions>().Configure<IOptions<TestJobOption>>((options, dep) =>
-            {
-                if (!string.IsNullOrWhiteSpace(dep.Value.Cron))
-                {
-                    q.ScheduleJob<TestJob>(trigger => trigger.StartNow().WithCronSchedule(dep.Value.Cron)                    );
-                } // ELSE LOG?
-            });
+        services.Configure<TestJobOption>(context.Configuration.GetSection(TestJobOption.TestJob));
+        services.AddOptions<QuartzOptions>().Configure<IOptions<TestJobOption>>((options, dep) =>
+        {
+            if (string.IsNullOrWhiteSpace(dep.Value.Cron))
+                throw new Exception(nameof(TestJobOption.Cron));
+
+            var jobKey = new JobKey(nameof(TestJob));
+            options.AddJob<TestJob>(c => c.WithIdentity(jobKey));
+            options.AddTrigger(t => t.ForJob(jobKey).WithCronSchedule(dep.Value.Cron).StartNow());            
 
         });
 
